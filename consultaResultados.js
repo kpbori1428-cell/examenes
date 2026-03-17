@@ -110,19 +110,17 @@ class ConsultaResultados {
                 return resultado;
             }
 
-            // Paso 3: Obtener detalles de cada atención
+            // Paso 3: Obtener detalles de cada atención en paralelo
             console.log(`[3/4] Obteniendo detalles de ${resultado.atenciones.length} atención(es)...`);
-            for (const atencion of resultado.atenciones) {
-                await this._obtener_examenes(atencion, resultado);
-            }
+            const examenesPromises = resultado.atenciones.map(atencion => this._obtener_examenes(atencion, resultado));
+            await Promise.all(examenesPromises);
 
-            // Paso 4: Intentar resolver URLs de PDFs
+            // Paso 4: Intentar resolver URLs de PDFs en paralelo
             console.log("[4/4] Resolviendo enlaces de PDFs...");
-            for (const examen of resultado.examenes) {
-                await this._resolver_pdf(examen);
-            }
+            const pdfPromises = resultado.examenes.map(examen => this._resolver_pdf(examen));
+            await Promise.all(pdfPromises);
 
-            console.log(`✓ Consulta completada. Se encontraron ${resultado.examenes.length} examen(es).`);
+            console.log(`✓ Consulta completada en paralelo. Se encontraron ${resultado.examenes.length} examen(es).`);
 
         } catch (e) {
             if (e.response) {

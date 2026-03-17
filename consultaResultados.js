@@ -73,6 +73,7 @@ class ConsultaResultados {
             apellidos: "",
             sexo: "",
             fecha_nacimiento: "",
+            fecha_atencion: fecha_atencion, // Added tracking back the date queried
             atenciones: [],
             examenes: [],
             errores: []

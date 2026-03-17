@@ -42,17 +42,107 @@ app.post('/api/consultar', async (req, res) => {
 async function handleConsulta(params, res) {
     const rut = params.rut || (Array.isArray(params.rut) ? params.rut[0] : '');
     const fecha_nacimiento = params.fecha_nacimiento || (Array.isArray(params.fecha_nacimiento) ? params.fecha_nacimiento[0] : '');
-    const fecha_atencion = params.fecha_atencion || (Array.isArray(params.fecha_atencion) ? params.fecha_atencion[0] : '');
+    const fecha_inicio = params.fecha_inicio || (Array.isArray(params.fecha_inicio) ? params.fecha_inicio[0] : params.fecha_atencion || '');
+    const fecha_fin = params.fecha_fin || (Array.isArray(params.fecha_fin) ? params.fecha_fin[0] : params.fecha_atencion || '');
 
-    if (!rut || !fecha_nacimiento || !fecha_atencion) {
+    if (!rut || !fecha_nacimiento || !fecha_inicio || !fecha_fin) {
         return sendError(res, "Faltan parámetros requeridos");
     }
 
-    try {
-        const cliente = new ConsultaResultados();
-        const resultado = await cliente.consultar(rut, fecha_nacimiento, fecha_atencion);
+    // Generar arreglo de fechas (DD-MM-YYYY) entre inicio y fin
+    const datesToQuery = [];
+    const partsStart = fecha_inicio.split('-');
+    const partsEnd = fecha_fin.split('-');
 
-        res.status(200).json(resultado);
+    if (partsStart.length !== 3 || partsEnd.length !== 3) {
+         return sendError(res, "El formato de las fechas debe ser DD-MM-YYYY");
+    }
+
+    let currentDate = new Date(partsStart[2], partsStart[1] - 1, partsStart[0]);
+    const endDate = new Date(partsEnd[2], partsEnd[1] - 1, partsEnd[0]);
+
+    if (currentDate > endDate) {
+        return sendError(res, "La fecha de inicio no puede ser mayor a la fecha de fin");
+    }
+
+    while (currentDate <= endDate) {
+        const day = String(currentDate.getDate()).padStart(2, '0');
+        const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+        const year = currentDate.getFullYear();
+        datesToQuery.push(`${day}-${month}-${year}`);
+        currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    // Evitar abusos (máximo 31 días por consulta)
+    if (datesToQuery.length > 31) {
+        return sendError(res, "El rango máximo de consulta es de 31 días.");
+    }
+
+    try {
+        const resultadosAgrupados = {
+            rut: rut,
+            nombre: "",
+            apellidos: "",
+            sexo: "",
+            fecha_nacimiento: "",
+            atenciones: [],
+            examenes: [],
+            errores: []
+        };
+
+        // Procesar en chunks de 3 para no saturar/bloquear la IP del hospital
+        const CHUNK_SIZE = 3;
+        for (let i = 0; i < datesToQuery.length; i += CHUNK_SIZE) {
+            const chunk = datesToQuery.slice(i, i + CHUNK_SIZE);
+            const promises = chunk.map(async (fecha) => {
+                const cliente = new ConsultaResultados();
+                return await cliente.consultar(rut, fecha_nacimiento, fecha);
+            });
+
+            const results = await Promise.all(promises);
+
+            for (const res of results) {
+                // Setear datos del paciente si los encontramos y no los teníamos
+                if (!resultadosAgrupados.nombre && res.nombre) {
+                    resultadosAgrupados.nombre = res.nombre;
+                    resultadosAgrupados.apellidos = res.apellidos;
+                    resultadosAgrupados.sexo = res.sexo;
+                    resultadosAgrupados.fecha_nacimiento = res.fecha_nacimiento;
+                }
+
+                // Agregar atenciones sin duplicados (por número)
+                for (const atencion of res.atenciones) {
+                    if (!resultadosAgrupados.atenciones.some(a => a.numero === atencion.numero)) {
+                        resultadosAgrupados.atenciones.push(atencion);
+                    }
+                }
+
+                // Agregar examenes sin duplicados (por url_ver)
+                for (const examen of res.examenes) {
+                    if (!resultadosAgrupados.examenes.some(e => e.url_ver === examen.url_ver)) {
+                        resultadosAgrupados.examenes.push(examen);
+                    }
+                }
+
+                // Agregar errores específicos si hubo problemas de conexión u otros, pero
+                // ignorar el típico "No se encontraron atenciones" si se consultan múltiples días vacíos.
+                for (const err of res.errores) {
+                    if (!err.includes("No se encontraron atenciones")) {
+                        const errMsg = `[Fecha ${res.fecha_atencion || 'Desconocida'}]: ${err}`;
+                        if (!resultadosAgrupados.errores.includes(errMsg)) {
+                            resultadosAgrupados.errores.push(errMsg);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Si al final todas las fechas devolvieron vacío, ponemos el mensaje genérico
+        if (resultadosAgrupados.atenciones.length === 0 && resultadosAgrupados.errores.length === 0) {
+             resultadosAgrupados.errores.push("No se encontraron atenciones para el rango de fechas proporcionado");
+        }
+
+        res.status(200).json(resultadosAgrupados);
     } catch (e) {
         return sendError(res, e.message);
     }

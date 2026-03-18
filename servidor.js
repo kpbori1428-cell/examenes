@@ -10,6 +10,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname)));
+app.use('/public', express.static(path.join(__dirname, 'public')));
 
 // Intercept JSON parsing errors from express.json()
 app.use((err, req, res, next) => {
@@ -44,6 +45,12 @@ app.get('/api/pdf', async (req, res) => {
     if (!url_ver) {
         return res.status(400).send("Falta parámetro url_ver");
     }
+
+    // Prevent SSRF attacks: Ensure the requested URL actually points to the target hospital system
+    if (!url_ver.startsWith('http://163.247.80.155:90/resultados/Pacientes/')) {
+        return res.status(403).send("URL de examen denegada por seguridad.");
+    }
+
     try {
         const cliente = new ConsultaResultados();
         const url_final = await cliente.resolver_url_pdf_unica(url_ver);

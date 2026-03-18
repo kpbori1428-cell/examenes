@@ -3,80 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Consulta de Resultados</title>
+    <title>Motor Médico V4</title>
 </head>
-<body>
-    <h1>Consulta de Resultados de Exámenes</h1>
-    <form id="consultaForm">
-        <label for="rut">RUT:</label>
-        <input type="text" id="rut" name="rut" placeholder="Ej: 19.185.163-3" required><br><br>
+<body style="background-color: #fafafa; padding: 20px;">
+    <!-- ÚNICO CONTENEDOR ESTÁTICO (Toda la App vive en el JSON) -->
+    <div id="app"></div>
 
-        <label for="fecha_nacimiento">Fecha de Nacimiento:</label>
-        <input type="text" id="fecha_nacimiento" name="fecha_nacimiento" placeholder="DD-MM-YYYY" required><br><br>
-
-        <fieldset>
-            <legend>Rango de Fechas de Atención (Máximo 31 días)</legend>
-            <label for="fecha_inicio">Desde:</label>
-            <input type="date" id="fecha_inicio" name="fecha_inicio" required>
-            <br><br>
-            <label for="fecha_fin">Hasta:</label>
-            <input type="date" id="fecha_fin" name="fecha_fin" required>
-        </fieldset>
-        <br>
-
-        <button type="submit" id="btnSubmit">Consultar</button>
-    </form>
-
-    <div id="resultados"></div>
-
-    <script>
-        // Utilidad para cambiar de YYYY-MM-DD (formato de <input type="date">) a DD-MM-YYYY (formato IrisLab)
-        function formatInputDate(dateStr) {
-            if (!dateStr || !dateStr.includes('-')) return dateStr;
-            const parts = dateStr.split('-');
-            if (parts[0].length === 4) { // si empieza con año
-                return `${parts[2]}-${parts[1]}-${parts[0]}`;
-            }
-            return dateStr; // si ya viene bien
-        }
-
-        document.getElementById('consultaForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const formData = new FormData(e.target);
-            const data = Object.fromEntries(formData.entries());
-
-            // Re-formatear las fechas enviadas por el calendario HTML5 a lo que el backend de Node espera
-            data.fecha_inicio = formatInputDate(data.fecha_inicio);
-            data.fecha_fin = formatInputDate(data.fecha_fin);
-
-            document.getElementById('btnSubmit').innerText = "Cargando (esto puede tardar)...";
-            document.getElementById('btnSubmit').disabled = true;
-
-            try {
-                const response = await fetch('/api/consultar', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(data)
-                });
-                const result = await response.json();
-
-                // Formatear el resultado para mostrar cómo usar el nuevo /api/pdf
-                if (result.examenes && result.examenes.length > 0) {
-                    result.examenes.forEach(ex => {
-                        ex.url_descargar_pdf_rapido = `/api/pdf?url_ver=${encodeURIComponent(ex.url_ver)}`;
-                    });
-                }
-
-                document.getElementById('resultados').innerText = JSON.stringify(result, null, 2);
-            } catch (error) {
-                document.getElementById('resultados').innerText = 'Error: ' + error.message;
-            } finally {
-                document.getElementById('btnSubmit').innerText = "Consultar";
-                document.getElementById('btnSubmit').disabled = false;
-            }
-        });
-    </script>
+    <script type="module" src="public/app.js"></script>
 </body>
 </html>

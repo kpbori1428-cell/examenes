@@ -344,6 +344,49 @@ class ConsultaResultados {
             // Silenciosamente ignorar errores al resolver PDFs
         }
     }
+    async extraer_datos_pdf(url_final) {
+        try {
+            // Requerimos pdf-parse solo cuando sea necesario
+            const pdf = require('pdf-parse');
+
+            // Descargar el PDF como buffer binario
+            const resp = await this.session.get(url_final, { responseType: 'arraybuffer' });
+
+            // Parsear el PDF a texto
+            const data = await pdf(resp.data);
+            const text = data.text;
+
+            const resultados = {};
+
+            // Expresión Regular para buscar el patrón: Nombre Parámetro : Valor [Rango Opcional]
+            // Ej: HEMOGLOBINA (g/dL) : 13,6 14 - 17 *
+            const lines = text.split('\n');
+            for (let line of lines) {
+                line = line.trim();
+                if (line.includes(':')) {
+                    // Dividimos por el primer dos puntos
+                    const partes = line.split(':');
+                    if (partes.length >= 2) {
+                        const parametro = partes[0].trim();
+                        // Tomamos el resto (por si hay más de un ':')
+                        const resto = partes.slice(1).join(':').trim();
+
+                        // Extraemos el primer número (puede tener comas o puntos)
+                        const matchValor = resto.match(/^([\d,.]+)/);
+
+                        if (matchValor && parametro.length > 2 && parametro.length < 50) {
+                            resultados[parametro] = matchValor[1];
+                        }
+                    }
+                }
+            }
+
+            return resultados;
+        } catch (e) {
+            console.error(`Error extrayendo datos de PDF ${url_final}:`, e.message);
+            return null;
+        }
+    }
 }
 
 async function main() {

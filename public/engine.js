@@ -1,6 +1,6 @@
 export const RESERVED = {
     tag: true, id: true, class: true, text: true, html: true, value: true, name: true, placeholder: true, type: true, required: true,
-    disabled: true, click: true, submit: true, change: true, href: true, target: true, src: true, children: true, _style: true
+    disabled: true, click: true, submit: true, change: true, inputAction: true, href: true, target: true, src: true, children: true, _style: true
 };
 
 let currentContent = null;
@@ -49,9 +49,17 @@ export function construir(config, parent, pathPrefix = '', actionDictionary = {}
     if (config.target) el.target = config.target;
     if (config.src) el.src = config.src;
 
+    // Apply data- attributes implicitly
+    for (const key in config) {
+        if (key.startsWith('data-')) {
+            el.setAttribute(key, config[key]);
+        }
+    }
+
     if (config.click && actionDictionary[config.click]) el.addEventListener('click', (e) => actionDictionary[config.click](e, el, config, pathPrefix));
     if (config.submit && actionDictionary[config.submit]) el.addEventListener('submit', (e) => actionDictionary[config.submit](e, el, config, pathPrefix));
     if (config.change && actionDictionary[config.change]) el.addEventListener('change', (e) => actionDictionary[config.change](e, el, config, pathPrefix));
+    if (config.inputAction && actionDictionary[config.inputAction]) el.addEventListener('input', (e) => actionDictionary[config.inputAction](e, el, config, pathPrefix));
 
     // Si pasamos estilos bajo la llave especial _style, los aplicamos
     if (config._style) {
@@ -70,7 +78,7 @@ export function construir(config, parent, pathPrefix = '', actionDictionary = {}
     // Implicit children defined as object keys
     else {
         for (const key in config) {
-            if (RESERVED[key]) continue;
+            if (RESERVED[key] || key.startsWith('data-')) continue;
             const val = config[key];
             if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
                 const childPath = pathPrefix ? `${pathPrefix}.${key}` : key;

@@ -40,6 +40,45 @@ app.post('/api/consultar', async (req, res) => {
     }
 });
 
+app.post('/api/comparar', async (req, res) => {
+    const { examenes } = req.body; // [{ url_ver: string, fecha: string }]
+
+    if (!examenes || !Array.isArray(examenes) || examenes.length < 2) {
+        return res.status(400).json({ error: "Debe proveer al menos dos exámenes para comparar" });
+    }
+
+    try {
+        const cliente = new ConsultaResultados();
+
+        // Procesar en paralelo todos los examenes seleccionados
+        const comparacionPromises = examenes.map(async (examen) => {
+            if (!examen.url_ver.startsWith('http://163.247.80.155:90/resultados/Pacientes/')) {
+                return { fecha: examen.fecha, error: "URL Inválida", datos: null };
+            }
+
+            // 1. Resolver el PDF final perezosamente
+            const url_final = await cliente.resolver_url_pdf_unica(examen.url_ver);
+            if (!url_final) {
+                 return { fecha: examen.fecha, error: "No se pudo obtener el PDF", datos: null };
+            }
+
+            // 2. Extraer los datos numéricos del PDF resuelto
+            const datos = await cliente.extraer_datos_pdf(url_final);
+            return {
+                fecha: examen.fecha,
+                url_pdf: url_final,
+                datos: datos
+            };
+        });
+
+        const resultadosCompletos = await Promise.all(comparacionPromises);
+        res.status(200).json(resultadosCompletos);
+
+    } catch (e) {
+        res.status(500).json({ error: "Error extrayendo datos de comparación: " + e.message });
+    }
+});
+
 app.get('/api/pdf', async (req, res) => {
     const url_ver = req.query.url_ver;
     if (!url_ver) {
@@ -137,9 +176,10 @@ async function handleConsulta(params, res) {
                     }
                 }
 
-                // Agregar examenes sin duplicados (por url_ver)
+                // Agregar examenes sin duplicados (por url_ver) y marcarlos con su fecha
                 for (const examen of res.examenes) {
                     if (!resultadosAgrupados.examenes.some(e => e.url_ver === examen.url_ver)) {
+                        examen.fecha = res.fecha_atencion; // Registrar la fecha de la consulta que encontró este examen
                         resultadosAgrupados.examenes.push(examen);
                     }
                 }

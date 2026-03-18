@@ -9,7 +9,7 @@ window.actionDictionary = {
         const data = Object.fromEntries(formData.entries());
 
         // Guardar el estado actual del formulario para no perder lo tipeado al re-renderizar
-        // y establecer el estado de carga declarativamente
+        // y establecer el estado de carga declarativamente con spinner
         inyectar_cambios({
             formulario: {
                 row1: {
@@ -23,9 +23,9 @@ window.actionDictionary = {
                     }
                 },
                 boton_consultar: {
-                    text: 'Cargando (esto puede tardar)...',
+                    html: '<span class="spinner"></span> Cargando...',
                     disabled: true,
-                    _style: { 'background-color': '#64748b', cursor: 'not-allowed' }
+                    _style: { 'background-color': '#64748b', cursor: 'not-allowed', display: 'flex', 'align-items': 'center', 'justify-content': 'center', gap: '10px' }
                 }
             }
         });
@@ -63,9 +63,9 @@ window.actionDictionary = {
             inyectar_cambios({
                 formulario: {
                     boton_consultar: {
-                        text: 'Consultar Exámenes',
+                        html: 'Consultar Exámenes',
                         disabled: false,
-                        _style: { 'background-color': '#0ea5e9', cursor: 'pointer' }
+                        _style: { 'background-color': '#0ea5e9', cursor: 'pointer', display: 'block' }
                     }
                 }
             });
@@ -74,6 +74,16 @@ window.actionDictionary = {
 };
 
 // Generador de Componentes Visuales (Nodos JSON) a partir de los Datos Crudos
+function obtenerIconoExamen(nombre) {
+    const n = nombre.toLowerCase();
+    if (n.includes('hemo') || n.includes('sangre')) return '🩸';
+    if (n.includes('orina') || n.includes('uro')) return '💧';
+    if (n.includes('perfil') || n.includes('bioqui')) return '🧪';
+    if (n.includes('pcr') || n.includes('cultivo') || n.includes('virus')) return '🦠';
+    if (n.includes('radiogra') || n.includes('rx') || n.includes('imagen')) return '🩻';
+    return '📄';
+}
+
 function generarUIResultados(data) {
     if (data.error) {
         return inyectar_cambios({ resultados: { tag: 'div', text: data.error, _style: { color: 'red' } } });
@@ -179,10 +189,10 @@ function generarUIResultados(data) {
                         _style: { display: 'flex', 'flex-direction': 'column', gap: '10px' },
                         children: examenesFecha.map(e => ({
                             tag: 'div',
-                            class: 'fila-examen', // Añadido para fácil filtrado
+                            class: 'fila-examen', // Añadido para fácil filtrado y hover css
                             'data-nombre': e.descripcion.toLowerCase(),
                             'data-codigo': e.codigo.toLowerCase(),
-                            _style: { padding: '15px 20px', background: '#0f172a', border: '1px solid #1e293b', 'border-radius': '8px', display: 'flex', 'justify-content': 'space-between', 'align-items': 'center' },
+                            _style: { padding: '15px 20px', background: '#0f172a', border: '1px solid #1e293b', 'border-radius': '8px', display: 'flex', 'justify-content': 'space-between', 'align-items': 'center', transition: 'transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease' },
                             info: {
                                 tag: 'div',
                                 _style: { display: 'flex', 'align-items': 'center', gap: '15px' },
@@ -194,17 +204,19 @@ function generarUIResultados(data) {
                                     'data-fecha': fecha,
                                     'data-nombre': e.descripcion,
                                     change: 'actualizar_contador_comparar',
-                                    _style: { cursor: 'pointer', width: '18px', height: '18px' }
+                                    _style: { cursor: 'pointer', width: '18px', height: '18px', 'accent-color': '#10b981' }
                                 },
                                 codigo: { tag: 'span', text: e.codigo, _style: { color: '#94a3b8', 'font-family': 'monospace', 'font-size': '0.9rem', background: '#1e293b', padding: '2px 6px', 'border-radius': '4px' } },
+                                icono_tipo: { tag: 'span', text: obtenerIconoExamen(e.descripcion), _style: { 'font-size': '1.2rem' } },
                                 descripcion: { tag: 'span', text: e.descripcion, _style: { color: '#f8fafc', 'font-weight': '500' } }
                             },
                             boton: {
                                 tag: 'a',
-                                text: '📄 Ver Detalle',
+                                html: '📄 <span class="hover-text">Ver Detalle</span>',
+                                class: 'btn-ver-detalle',
                                 href: `/api/pdf?url_ver=${encodeURIComponent(e.url_ver)}`,
                                 target: '_blank',
-                                _style: { 'background-color': '#0ea5e9', color: '#ffffff', padding: '8px 16px', 'text-decoration': 'none', 'border-radius': '6px', 'font-weight': '600', 'font-size': '0.9rem', transition: 'background 0.2s', cursor: 'pointer', 'box-shadow': '0 2px 4px rgba(14, 165, 233, 0.3)' }
+                                _style: { 'background-color': '#1e293b', color: '#38bdf8', padding: '8px 16px', 'text-decoration': 'none', 'border-radius': '6px', 'font-weight': '600', 'font-size': '0.9rem', transition: 'all 0.2s', cursor: 'pointer', border: '1px solid #38bdf8' }
                             }
                         }))
                     }
@@ -294,6 +306,44 @@ const estadoInicial = {
         id: 'resultados_container'
     }
 };
+
+// Estilos globales adicionales (Spinner, Hover, Scrollbars) para no ensuciar el JSON
+const globalStyles = document.createElement('style');
+globalStyles.innerHTML = `
+    .spinner {
+        border: 3px solid rgba(255,255,255,0.3);
+        border-radius: 50%;
+        border-top: 3px solid #fff;
+        width: 16px;
+        height: 16px;
+        animation: spin 1s linear infinite;
+        display: inline-block;
+    }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+    .fila-examen:hover {
+        transform: translateY(-2px);
+        border-color: #38bdf8 !important;
+        box-shadow: 0 4px 12px rgba(56, 189, 248, 0.15);
+    }
+
+    .btn-ver-detalle:hover {
+        background-color: #38bdf8 !important;
+        color: #0f172a !important;
+    }
+
+    #input_buscador:focus {
+        border-color: #38bdf8 !important;
+        box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.3);
+    }
+
+    /* Scrollbar estilizado para el modal */
+    .modal-content::-webkit-scrollbar { width: 8px; height: 8px; }
+    .modal-content::-webkit-scrollbar-track { background: #1e293b; border-radius: 4px; }
+    .modal-content::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+    .modal-content::-webkit-scrollbar-thumb:hover { background: #64748b; }
+`;
+document.head.appendChild(globalStyles);
 
     // Añadir lógica extra al diccionario para la comparación
     window.actionDictionary['filtrar_examenes'] = (e) => {
@@ -414,29 +464,54 @@ function generarUIComparacion(resultadosArray, nombreExamenGeneral) {
         rows.push(...celdas);
     });
 
+    // Aplicando Sticky Headers
+    headersGrid[0]._style['position'] = 'sticky';
+    headersGrid[0]._style['top'] = '0';
+    headersGrid[0]._style['left'] = '0';
+    headersGrid[0]._style['z-index'] = '20';
+
+    for(let i=1; i<headersGrid.length; i++){
+        headersGrid[i]._style['position'] = 'sticky';
+        headersGrid[i]._style['top'] = '0';
+        headersGrid[i]._style['z-index'] = '10';
+    }
+
+    rows.forEach((celda, i) => {
+        // La primera celda de cada fila es el parametro, hay que fijarla a la izquierda
+        if(i % (fechas.length + 1) === 0){
+            celda._style['position'] = 'sticky';
+            celda._style['left'] = '0';
+            celda._style['z-index'] = '10';
+            celda._style['background'] = '#1e293b'; // Un fondo solido para tapar lo que hace scroll detras
+        } else {
+            celda._style['background'] = '#0f172a';
+        }
+    });
+
     const modalUI = {
         tag: 'div',
         id: 'modal_comparacion',
-        _style: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', 'justify-content': 'center', 'align-items': 'center', 'z-index': 1000 },
+        _style: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.7)', 'backdrop-filter': 'blur(8px)', '-webkit-backdrop-filter': 'blur(8px)', display: 'flex', 'justify-content': 'center', 'align-items': 'center', 'z-index': 1000 },
         click: 'cerrar_modal',
         content: {
             tag: 'div',
-            _style: { background: '#1e293b', padding: '30px', 'border-radius': '16px', 'max-width': '900px', width: '90%', 'max-height': '85vh', 'overflow-y': 'auto', border: '1px solid #334155', 'box-shadow': '0 20px 25px -5px rgba(0,0,0,0.5)' },
+            class: 'modal-content', // Para el scrollbar
+            _style: { background: '#1e293b', padding: '30px', 'border-radius': '16px', 'max-width': '900px', width: '90%', 'max-height': '85vh', 'overflow-y': 'auto', 'overflow-x': 'auto', border: '1px solid #334155', 'box-shadow': '0 25px 50px -12px rgba(0,0,0,0.5)' },
             click: 'evitar_cierre',
             header: {
                 tag: 'div',
                 _style: { display: 'flex', 'justify-content': 'space-between', 'align-items': 'center', 'margin-bottom': '20px' },
                 title: { tag: 'h2', text: `Comparativa Evolutiva: ${nombreExamenGeneral}`, _style: { margin: 0, color: '#38bdf8' } },
-                closeBtn: { tag: 'button', text: '✖ Cerrar', click: 'cerrar_modal', _style: { background: 'transparent', color: '#f87171', border: 'none', cursor: 'pointer', 'font-size': '1.1rem', 'font-weight': 'bold' } }
+                closeBtn: { tag: 'button', text: '✖ Cerrar', click: 'cerrar_modal', _style: { background: '#334155', color: '#f8fafc', border: 'none', cursor: 'pointer', 'font-size': '1rem', 'font-weight': 'bold', padding: '8px 12px', 'border-radius': '6px', transition: 'background 0.2s' } }
             },
             advertencia: {
                 tag: 'div',
-                text: '⚠ Nota: Estos datos son extraídos automáticamente del texto del PDF y pueden contener inexactitudes si el formato del hospital cambió.',
-                _style: { background: '#451a03', color: '#fcd34d', padding: '10px', 'border-radius': '8px', 'margin-bottom': '20px', 'font-size': '0.85rem', 'text-align': 'center' }
+                text: '⚠ Nota: Estos datos son extraídos automáticamente del texto del PDF y pueden contener inexactitudes.',
+                _style: { background: 'rgba(245, 158, 11, 0.1)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.2)', padding: '10px', 'border-radius': '8px', 'margin-bottom': '20px', 'font-size': '0.85rem', 'text-align': 'center' }
             },
             tabla: {
                 tag: 'div',
-                _style: { display: 'grid', 'grid-template-columns': `2fr repeat(${fechas.length}, 1fr)`, gap: '1px', background: '#334155', 'border-radius': '8px', overflow: 'hidden' },
+                _style: { display: 'grid', 'grid-template-columns': `minmax(250px, 2fr) repeat(${fechas.length}, minmax(120px, 1fr))`, gap: '1px', background: '#334155', 'border-radius': '8px', overflow: 'hidden' },
                 children: [...headersGrid, ...rows]
             }
         }

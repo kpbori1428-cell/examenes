@@ -39,6 +39,24 @@ app.post('/api/consultar', async (req, res) => {
     }
 });
 
+app.get('/api/pdf', async (req, res) => {
+    const url_ver = req.query.url_ver;
+    if (!url_ver) {
+        return res.status(400).send("Falta parámetro url_ver");
+    }
+    try {
+        const cliente = new ConsultaResultados();
+        const url_final = await cliente.resolver_url_pdf_unica(url_ver);
+        if (url_final) {
+            return res.redirect(url_final);
+        } else {
+            return res.status(404).send("No se pudo resolver el PDF");
+        }
+    } catch (e) {
+        return res.status(500).send("Error del servidor: " + e.message);
+    }
+});
+
 async function handleConsulta(params, res) {
     const rut = params.rut || (Array.isArray(params.rut) ? params.rut[0] : '');
     const fecha_nacimiento = params.fecha_nacimiento || (Array.isArray(params.fecha_nacimiento) ? params.fecha_nacimiento[0] : '');
@@ -71,11 +89,6 @@ async function handleConsulta(params, res) {
         const year = currentDate.getFullYear();
         datesToQuery.push(`${day}-${month}-${year}`);
         currentDate.setDate(currentDate.getDate() + 1);
-    }
-
-    // Evitar abusos (máximo 31 días por consulta)
-    if (datesToQuery.length > 31) {
-        return sendError(res, "El rango máximo de consulta es de 31 días.");
     }
 
     try {

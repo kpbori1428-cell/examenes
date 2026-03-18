@@ -64,7 +64,7 @@ class ConsultaResultados {
         return `${res}-${dv}`;
     }
 
-    async consultar(rut, fecha_nacimiento, fecha_atencion) {
+    async consultar(rut, fecha_nacimiento, fecha_atencion, resolver_pdfs_automaticamente = false) {
         const rutFormateado = this._format_rut(rut);
 
         const resultado = {
@@ -116,12 +116,16 @@ class ConsultaResultados {
             const examenesPromises = resultado.atenciones.map(atencion => this._obtener_examenes(atencion, resultado));
             await Promise.all(examenesPromises);
 
-            // Paso 4: Intentar resolver URLs de PDFs en paralelo
-            console.log("[4/4] Resolviendo enlaces de PDFs...");
-            const pdfPromises = resultado.examenes.map(examen => this._resolver_pdf(examen));
-            await Promise.all(pdfPromises);
+            if (resolver_pdfs_automaticamente) {
+                // Paso 4: Intentar resolver URLs de PDFs en paralelo (Lento, hace muchas peticiones)
+                console.log("[4/4] Resolviendo enlaces de PDFs...");
+                const pdfPromises = resultado.examenes.map(examen => this._resolver_pdf(examen));
+                await Promise.all(pdfPromises);
+            } else {
+                console.log("[4/4] Extracción finalizada (links a PDFs listos para resolución perezosa).");
+            }
 
-            console.log(`✓ Consulta completada en paralelo. Se encontraron ${resultado.examenes.length} examen(es).`);
+            console.log(`✓ Consulta completada. Se encontraron ${resultado.examenes.length} examen(es).`);
 
         } catch (e) {
             if (e.response) {
@@ -259,6 +263,37 @@ class ConsultaResultados {
         } catch (e) {
             resultado.errores.push(`Error obteniendo exámenes de atención ${atencion.numero}: ${e.message}`);
         }
+    }
+
+    async resolver_url_pdf_unica(url_ver) {
+        try {
+            const resp = await this.session.get(url_ver);
+            const finalUrl = resp.request.res.responseUrl || url_ver;
+
+            if (finalUrl.toLowerCase().includes('.pdf')) {
+                return finalUrl;
+            } else {
+                const $ = cheerio.load(resp.data);
+
+                const meta = $('meta[http-equiv*="refresh" i]');
+                if (meta.length > 0) {
+                    const match = (meta.attr('content') || '').match(/url=([^\s"']+)/i);
+                    if (match) return new URL(match[1], finalUrl).href;
+                }
+
+                const iframe = $('iframe[src*=".pdf" i]');
+                if (iframe.length > 0) return new URL(iframe.attr('src') || '', finalUrl).href;
+
+                const link = $('a[href*=".pdf" i]');
+                if (link.length > 0) return new URL(link.attr('href') || '', finalUrl).href;
+
+                const scriptMatch = resp.data.match(/document\.location\.href\s*=\s*['"]([^'"]+)['"]/i);
+                if (scriptMatch) return new URL(scriptMatch[1], finalUrl).href;
+            }
+        } catch (e) {
+            // Ignorar y devolver null
+        }
+        return null;
     }
 
     async _resolver_pdf(examen) {

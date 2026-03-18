@@ -61,6 +61,14 @@
                     body: JSON.stringify(data)
                 });
                 const result = await response.json();
+
+                // Formatear el resultado para mostrar cómo usar el nuevo /api/pdf
+                if (result.examenes && result.examenes.length > 0) {
+                    result.examenes.forEach(ex => {
+                        ex.url_descargar_pdf_rapido = `/api/pdf?url_ver=${encodeURIComponent(ex.url_ver)}`;
+                    });
+                }
+
                 document.getElementById('resultados').innerText = JSON.stringify(result, null, 2);
             } catch (error) {
                 document.getElementById('resultados').innerText = 'Error: ' + error.message;

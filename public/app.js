@@ -409,11 +409,15 @@ window.actionDictionary['iniciar_comparacion'] = async (e, btnNode) => {
     btnNode.style.backgroundColor = "#64748b";
     btnNode.style.cursor = "wait";
 
+        // Obtener el RUT actual del formulario para la base de datos
+        const rutInput = document.querySelector('input[name="rut"]');
+        const rutPaciente = rutInput ? rutInput.value : '';
+
     try {
         const response = await fetch('/api/comparar', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ examenes: seleccionados })
+                body: JSON.stringify({ examenes: seleccionados, rut_paciente: rutPaciente })
         });
         const data = await response.json();
 

@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 const { ConsultaResultados } = require('./consultaResultados');
 
 const app = express();
@@ -40,11 +41,24 @@ app.post('/api/consultar', async (req, res) => {
     }
 });
 
+// Helper para limpiar nombres de archivos
+function sanitizarNombreArchivo(nombre) {
+    return nombre.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+}
+
 app.post('/api/comparar', async (req, res) => {
-    const { examenes } = req.body; // [{ url_ver: string, fecha: string }]
+    const { examenes, rut_paciente } = req.body; // [{ url_ver: string, fecha: string, nombre: string }], rut_paciente: string
 
     if (!examenes || !Array.isArray(examenes) || examenes.length < 2) {
         return res.status(400).json({ error: "Debe proveer al menos dos exámenes para comparar" });
+    }
+
+    const rutLimpio = rut_paciente ? rut_paciente.replace(/[^0-9kK]/g, '') : 'paciente_desconocido';
+    const directorioPaciente = path.join(__dirname, 'base_datos', rutLimpio);
+
+    // Asegurar que el directorio de la base de datos local exista
+    if (!fs.existsSync(directorioPaciente)) {
+        fs.mkdirSync(directorioPaciente, { recursive: true });
     }
 
     try {
@@ -52,23 +66,64 @@ app.post('/api/comparar', async (req, res) => {
 
         // Procesar en paralelo todos los examenes seleccionados
         const comparacionPromises = examenes.map(async (examen) => {
-            if (!examen.url_ver.startsWith('http://163.247.80.155:90/resultados/Pacientes/')) {
+            try {
+                const parsedUrl = new URL(examen.url_ver);
+                if (parsedUrl.hostname !== '163.247.80.155' || parsedUrl.port !== '90' || !parsedUrl.pathname.startsWith('/resultados/Pacientes/')) {
+                    return { fecha: examen.fecha, error: "URL Inválida por seguridad", datos: null };
+                }
+            } catch (err) {
                 return { fecha: examen.fecha, error: "URL Inválida", datos: null };
             }
 
-            // 1. Resolver el PDF final perezosamente
+            const nombreLimpio = sanitizarNombreArchivo(examen.nombre || 'examen');
+            // Formato de nombre de archivo seguro sin path traversal
+            const fechaLimpia = sanitizarNombreArchivo(examen.fecha || '00-00-0000');
+            const nombreArchivo = `${fechaLimpia}_${nombreLimpio}.json`;
+            const rutaArchivo = path.join(directorioPaciente, nombreArchivo);
+
+            // 1. REVISAR CACHÉ / DISCO LOCAL
+            if (fs.existsSync(rutaArchivo)) {
+                try {
+                    const contenido = fs.readFileSync(rutaArchivo, 'utf8');
+                    const datosGuardados = JSON.parse(contenido);
+                    console.log(`[Caché DB] Examen recuperado del disco: ${nombreArchivo}`);
+                    return datosGuardados; // Devolvemos directamente el archivo guardado sin llamar a internet
+                } catch (err) {
+                    console.error(`Error leyendo archivo caché ${rutaArchivo}:`, err.message);
+                    // Si falla la lectura, continuamos y lo descargamos de nuevo
+                }
+            }
+
+            // 2. NO EXISTE CACHÉ: OBTENER DESDE EL HOSPITAL
+            console.log(`[Extracción DB] Descargando y leyendo PDF para: ${nombreArchivo}`);
+
+            // Resolver el PDF final perezosamente
             const url_final = await cliente.resolver_url_pdf_unica(examen.url_ver);
             if (!url_final) {
                  return { fecha: examen.fecha, error: "No se pudo obtener el PDF", datos: null };
             }
 
-            // 2. Extraer los datos numéricos del PDF resuelto
+            // Extraer los datos numéricos del PDF resuelto
             const datos = await cliente.extraer_datos_pdf(url_final);
-            return {
+
+            const resultadoFinal = {
                 fecha: examen.fecha,
+                examen: examen.nombre,
                 url_pdf: url_final,
                 datos: datos
             };
+
+            // 3. GUARDAR EL RESULTADO COMO .JSON EN EL DISCO
+            if (datos && Object.keys(datos).length > 0) {
+                try {
+                    fs.writeFileSync(rutaArchivo, JSON.stringify(resultadoFinal, null, 4), 'utf8');
+                    console.log(`[Extracción DB] Examen guardado exitosamente en: base_datos/${rutLimpio}/${nombreArchivo}`);
+                } catch (err) {
+                    console.error(`Error guardando archivo JSON en disco:`, err.message);
+                }
+            }
+
+            return resultadoFinal;
         });
 
         const resultadosCompletos = await Promise.all(comparacionPromises);
@@ -86,8 +141,13 @@ app.get('/api/pdf', async (req, res) => {
     }
 
     // Prevent SSRF attacks: Ensure the requested URL actually points to the target hospital system
-    if (!url_ver.startsWith('http://163.247.80.155:90/resultados/Pacientes/')) {
-        return res.status(403).send("URL de examen denegada por seguridad.");
+    try {
+        const parsedUrl = new URL(url_ver);
+        if (parsedUrl.hostname !== '163.247.80.155' || parsedUrl.port !== '90' || !parsedUrl.pathname.startsWith('/resultados/Pacientes/')) {
+            return res.status(403).send("URL de examen denegada por seguridad.");
+        }
+    } catch (err) {
+        return res.status(400).send("URL malformada");
     }
 
     try {

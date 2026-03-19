@@ -228,18 +228,32 @@ class ConsultaResultados {
 
             if (tabla_examenes.length > 0) {
                 tabla_examenes.find('tr').each((_, row) => {
-                    const link = $(row).find('a[href*="iris_gen_pdf"]');
-                    if (link.length > 0) {
-                        const tds = $(row).find('td');
-                        if (tds.length >= 2) {
+                    const tds = $(row).find('td');
+                    if (tds.length >= 2) {
+                        const codigo = $(tds[0]).text().trim();
+                        const descripcion = $(tds[1]).text().trim();
+
+                        const link = $(row).find('a[href*="iris_gen_pdf"]');
+                        if (link.length > 0) {
+                            // Examen listo (tiene PDF)
                             const href = link.attr('href') || '';
                             const absoluteUrl = new URL(href, `${this.BASE_URL}/Pacientes/`).href;
 
                             resultado.examenes.push({
-                                codigo: $(tds[0]).text().trim(),
-                                descripcion: $(tds[1]).text().trim(),
+                                codigo: codigo,
+                                descripcion: descripcion,
                                 url_ver: absoluteUrl,
-                                url_pdf: null
+                                url_pdf: null,
+                                estado: "listo"
+                            });
+                        } else {
+                            // Examen pendiente (no tiene PDF)
+                            resultado.examenes.push({
+                                codigo: codigo,
+                                descripcion: descripcion,
+                                url_ver: null,
+                                url_pdf: null,
+                                estado: "pendiente"
                             });
                         }
                     }
@@ -358,24 +372,35 @@ class ConsultaResultados {
 
             const resultados = {};
 
-            // Expresión Regular para buscar el patrón: Nombre Parámetro : Valor [Rango Opcional]
-            // Ej: HEMOGLOBINA (g/dL) : 13,6 14 - 17 *
-            const lines = text.split('\n');
-            for (let line of lines) {
-                line = line.trim();
-                if (line.includes(':')) {
-                    // Dividimos por el primer dos puntos
-                    const partes = line.split(':');
+            // En PDFs con 2 columnas ("LEUCOCITOS : 6870   EOSINOFILOS : 2") pdf-parse mete multiples espacios en blanco.
+            // Asi que en vez de partir solo por \n, dividimos tambien por saltos de columna (2 o más espacios)
+            const tokens = text.split(/\s{2,}|\n/);
+
+            // Lista de palabras clave basura del membrete/pie de página
+            const ignorar = ['fecha', 'hora', 'validación', 'recepción', 'folio', 'edad', 'sexo', 'nombre', 'médico', 'procedencia', 'rut'];
+
+            for (let token of tokens) {
+                token = token.trim();
+
+                if (token.includes(':')) {
+                    const partes = token.split(':');
                     if (partes.length >= 2) {
-                        const parametro = partes[0].trim();
-                        // Tomamos el resto (por si hay más de un ':')
+                        let parametro = partes[0].trim();
+                        // Remover asteriscos o viñetas del inicio del parametro
+                        parametro = parametro.replace(/^[\*\-•]\s*/, '');
+
                         const resto = partes.slice(1).join(':').trim();
 
-                        // Extraemos el primer número (puede tener comas o puntos)
+                        // Extraer el primer numero real (con comas decimales ej 13,6)
                         const matchValor = resto.match(/^([\d,.]+)/);
 
-                        if (matchValor && parametro.length > 2 && parametro.length < 50) {
-                            resultados[parametro] = matchValor[1];
+                        // Es basura si contiene la palabra "fecha" o literalmente tiene una fecha como 05/12/2025
+                        const esBasura = ignorar.some(p => parametro.toLowerCase().includes(p)) || !!parametro.match(/\d{2}\/\d{2}\/\d{4}/);
+
+                        if (matchValor && parametro.length > 2 && parametro.length < 50 && !esBasura) {
+                            // Limpiar exceso de espacios internos del parámetro (ej: "LEUCOCITOS  (x mm3)" -> "LEUCOCITOS (x mm3)")
+                            const nombreLimpio = parametro.replace(/\s+/g, ' ');
+                            resultados[nombreLimpio] = matchValor[1];
                         }
                     }
                 }

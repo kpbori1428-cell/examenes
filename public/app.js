@@ -142,7 +142,7 @@ function generarUIResultados(data) {
             titulo: {
                 tag: 'h2',
                 _style: { margin: '0 0 15px 0', color: '#f8fafc', 'font-size': '1.25rem', display: 'flex', 'align-items': 'center', gap: '10px' },
-                icono: { tag: 'span', text: '🔬 Exámenes Listos' },
+                icono: { tag: 'span', text: '🔬 Historial de Exámenes' },
                 badge: { tag: 'span', text: String(data.examenes.length), _style: { background:'#f59e0b', padding:'2px 8px', 'border-radius':'12px', 'font-size':'0.9rem', color:'white' } },
                 instruccion: { tag: 'span', text: '(Selecciona 2 o más para comparar)', _style: { 'font-size': '0.85rem', color: '#94a3b8', 'margin-left': 'auto', 'font-weight': 'normal', display: 'none' } } // Oculto por defecto ya que ahora hay un buscador
             },
@@ -187,38 +187,55 @@ function generarUIResultados(data) {
                     grid: {
                         tag: 'div',
                         _style: { display: 'flex', 'flex-direction': 'column', gap: '10px' },
-                        children: examenesFecha.map(e => ({
-                            tag: 'div',
-                            class: 'fila-examen', // Añadido para fácil filtrado y hover css
-                            'data-nombre': e.descripcion.toLowerCase(),
-                            'data-codigo': e.codigo.toLowerCase(),
-                            _style: { padding: '15px 20px', background: '#0f172a', border: '1px solid #1e293b', 'border-radius': '8px', display: 'flex', 'justify-content': 'space-between', 'align-items': 'center', transition: 'transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease' },
-                            info: {
+                        children: examenesFecha.map(e => {
+                            const isPendiente = e.estado === "pendiente" || !e.url_ver;
+                            return {
                                 tag: 'div',
-                                _style: { display: 'flex', 'align-items': 'center', gap: '15px' },
-                                checkbox: {
-                                    tag: 'input',
-                                    type: 'checkbox',
-                                    name: 'examenes_comparar',
-                                    value: e.url_ver,
-                                    'data-fecha': fecha,
-                                    'data-nombre': e.descripcion,
-                                    change: 'actualizar_contador_comparar',
-                                    _style: { cursor: 'pointer', width: '18px', height: '18px', 'accent-color': '#10b981' }
+                                class: 'fila-examen', // Añadido para fácil filtrado y hover css
+                                'data-nombre': e.descripcion.toLowerCase(),
+                                'data-codigo': e.codigo.toLowerCase(),
+                                _style: {
+                                    padding: '15px 20px',
+                                    background: isPendiente ? '#1e293b' : '#0f172a',
+                                    border: '1px solid #1e293b',
+                                    'border-radius': '8px',
+                                    display: 'flex',
+                                    'justify-content': 'space-between',
+                                    'align-items': 'center',
+                                    transition: 'transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease',
+                                    opacity: isPendiente ? '0.6' : '1'
                                 },
-                                codigo: { tag: 'span', text: e.codigo, _style: { color: '#94a3b8', 'font-family': 'monospace', 'font-size': '0.9rem', background: '#1e293b', padding: '2px 6px', 'border-radius': '4px' } },
-                                icono_tipo: { tag: 'span', text: obtenerIconoExamen(e.descripcion), _style: { 'font-size': '1.2rem' } },
-                                descripcion: { tag: 'span', text: e.descripcion, _style: { color: '#f8fafc', 'font-weight': '500' } }
-                            },
-                            boton: {
-                                tag: 'a',
-                                html: '📄 <span class="hover-text">Ver Detalle</span>',
-                                class: 'btn-ver-detalle',
-                                href: `/api/pdf?url_ver=${encodeURIComponent(e.url_ver)}`,
-                                target: '_blank',
-                                _style: { 'background-color': '#1e293b', color: '#38bdf8', padding: '8px 16px', 'text-decoration': 'none', 'border-radius': '6px', 'font-weight': '600', 'font-size': '0.9rem', transition: 'all 0.2s', cursor: 'pointer', border: '1px solid #38bdf8' }
-                            }
-                        }))
+                                info: {
+                                    tag: 'div',
+                                    _style: { display: 'flex', 'align-items': 'center', gap: '15px' },
+                                    checkbox: isPendiente ? { tag: 'div', _style: { width: '18px' } } : {
+                                        tag: 'input',
+                                        type: 'checkbox',
+                                        name: 'examenes_comparar',
+                                        value: e.url_ver,
+                                        'data-fecha': fecha,
+                                        'data-nombre': e.descripcion,
+                                        change: 'actualizar_contador_comparar',
+                                        _style: { cursor: 'pointer', width: '18px', height: '18px', 'accent-color': '#10b981' }
+                                    },
+                                    codigo: { tag: 'span', text: e.codigo, _style: { color: '#94a3b8', 'font-family': 'monospace', 'font-size': '0.9rem', background: '#1e293b', padding: '2px 6px', 'border-radius': '4px' } },
+                                    icono_tipo: { tag: 'span', text: isPendiente ? '⏳' : obtenerIconoExamen(e.descripcion), _style: { 'font-size': '1.2rem' } },
+                                    descripcion: { tag: 'span', text: e.descripcion, _style: { color: isPendiente ? '#94a3b8' : '#f8fafc', 'font-weight': '500' } }
+                                },
+                                boton: isPendiente ? {
+                                    tag: 'span',
+                                    text: 'En proceso',
+                                    _style: { color: '#f59e0b', 'font-size': '0.9rem', 'font-weight': '600', background: 'rgba(245, 158, 11, 0.1)', padding: '4px 10px', 'border-radius': '12px' }
+                                } : {
+                                    tag: 'a',
+                                    html: '📄 <span class="hover-text">Ver Detalle</span>',
+                                    class: 'btn-ver-detalle',
+                                    href: `/api/pdf?url_ver=${encodeURIComponent(e.url_ver)}`,
+                                    target: '_blank',
+                                    _style: { 'background-color': '#1e293b', color: '#38bdf8', padding: '8px 16px', 'text-decoration': 'none', 'border-radius': '6px', 'font-weight': '600', 'font-size': '0.9rem', transition: 'all 0.2s', cursor: 'pointer', border: '1px solid #38bdf8' }
+                                }
+                            };
+                        })
                     }
                 }))
             }
@@ -513,10 +530,15 @@ function generarUIComparacion(resultadosArray, nombreExamenGeneral) {
                 text: '⚠ Nota: Estos datos son extraídos automáticamente del texto del PDF y pueden contener inexactitudes.',
                 _style: { background: 'rgba(245, 158, 11, 0.1)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.2)', padding: '10px', 'border-radius': '8px', 'margin-bottom': '20px', 'font-size': '0.85rem', 'text-align': 'center' }
             },
-            tabla: {
+            tabla_container: {
                 tag: 'div',
-                _style: { display: 'grid', 'grid-template-columns': `minmax(250px, 2fr) repeat(${fechas.length}, minmax(120px, 1fr))`, gap: '1px', background: '#334155', 'border-radius': '8px', overflow: 'hidden' },
-                children: [...headersGrid, ...rows]
+                _style: { overflow: 'auto', 'max-height': '60vh', 'border-radius': '8px', border: '1px solid #334155', background: '#334155' },
+                tabla: {
+                    tag: 'div',
+                    // The trick to force horizontal scroll: width must be min-content or max-content
+                    _style: { display: 'grid', 'grid-template-columns': `minmax(250px, auto) repeat(${fechas.length}, minmax(140px, 1fr))`, gap: '1px', width: 'max-content', 'min-width': '100%' },
+                    children: [...headersGrid, ...rows]
+                }
             }
         }
     };

@@ -1,0 +1,29 @@
+{
+    "fecha": "04-12-2025",
+    "examen": "Hemograma",
+    "url_pdf": "http://163.247.80.155:90/resultados/PACIENTES/PDF/8f424cec69002c80982d2b4f6d6ba1c3.PDF",
+    "datos": {
+        "LEUCOCITOS(x mm3)": "1450",
+        "ERITROCITOS(mill/mm3)": "2,65",
+        "HEMOGLOBINA(g/dL)": "7,5",
+        "HEMATOCRITO(%)": "22,9",
+        "V.C.M(fL)": "86,3",
+        "H.C.M(pg)": "28,4",
+        "C.H.C.M(%)": "32,8",
+        "RDW-CV(%)": "13,8",
+        "RETICULOCITOS(%)": "3,51",
+        "PLAQUETAS(x mm3)": "578000",
+        "BASOFILOS(%)": "2",
+        "EOSINOFILOS(%)": "4",
+        "PROMIELOCITOS(%)": "0",
+        "MIELOCITOS(%)": "0",
+        "JUVENILES(%)": "0",
+        "BACILIFORMES(%)": "0",
+        "SEGMENTADOS(%)": "10",
+        "LINFOCITOS(%)": "67",
+        "MONOCITOS(%)": "17",
+        "BLASTOS(%)": "0",
+        "TOTAL(%)": "100",
+        "MPV(fL)": "9,3"
+    }
+}

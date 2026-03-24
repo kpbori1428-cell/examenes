@@ -279,37 +279,22 @@ function sendError(res, message) {
 }
 
 function main() {
-    // 1. Obtener la IP local para mostrarla en la consola
-    const { networkInterfaces } = require('os');
-    const nets = networkInterfaces();
-    let ipLocal = 'localhost';
-    
-    for (const name of Object.keys(nets)) {
-        for (const net of nets[name]) {
-            if (net.family === 'IPv4' && !net.internal) {
-                ipLocal = net.address;
-            }
-        }
-    }
-
     console.log(`
 ╔══════════════════════════════════════════════════════════╗
 ║      SERVIDOR DE CONSULTA DE RESULTADOS DE EXÁMENES      ║
 ║           Hospital de Quilpué - Sistema IrisLab          ║
 ╚══════════════════════════════════════════════════════════╝
 
-Servidor iniciado localmente: http://localhost:${PORT}
-Acceso desde otros equipos: http://${ipLocal}:${PORT}
+Servidor iniciado en: http://localhost:${PORT}
 
+Abre el navegador en la dirección anterior para usar la interfaz.
 Presiona Ctrl+C para detener el servidor.
     `);
 
-    // 2. CAMBIO CLAVE: Agregar '0.0.0.0' para abrir el servidor a la red
-    app.listen(PORT, '0.0.0.0', () => {
+    app.listen(PORT, () => {
         // server running
     });
 }
-
 
 if (require.main === module) {
     main();

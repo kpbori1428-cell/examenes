@@ -379,29 +379,50 @@ class ConsultaResultados {
             // Lista de palabras clave basura del membrete/pie de página
             const ignorar = ['fecha', 'hora', 'validación', 'recepción', 'folio', 'edad', 'sexo', 'nombre', 'médico', 'procedencia', 'rut'];
 
+            let ultimoParametroSinValor = null;
+
             for (let token of tokens) {
                 token = token.trim();
+                if (!token) continue;
+
+                let parametro = null;
+                let valor = null;
 
                 if (token.includes(':')) {
                     const partes = token.split(':');
                     if (partes.length >= 2) {
-                        let parametro = partes[0].trim();
-                        // Remover asteriscos o viñetas del inicio del parametro
-                        parametro = parametro.replace(/^[\*\-•]\s*/, '');
-
+                        parametro = partes[0].trim();
                         const resto = partes.slice(1).join(':').trim();
-
-                        // Extraer el primer numero real (con comas decimales ej 13,6)
                         const matchValor = resto.match(/^([\d,.]+)/);
+                        if (matchValor) valor = matchValor[1];
+                    }
+                } else {
+                    // Si no tiene dos puntos, intentamos buscar "PARAMETRO VALOR" en la misma linea
+                    // ej: "GLUCOSA BASAL   95   70-100"
+                    const matchSinDosPuntos = token.match(/^([a-zA-ZáéíóúÁÉÍÓÚñÑ\s\(\)%\.\-\/]+?)\s+([\d,.]+)/);
+                    if (matchSinDosPuntos) {
+                        parametro = matchSinDosPuntos[1].trim();
+                        valor = matchSinDosPuntos[2];
+                    } else if (!token.match(/^([\d,.]+)/)) {
+                        // Si es texto puro (sin números al inicio), podría ser un parámetro cuyo valor viene en el siguiente token
+                        // ej: ["EOSINOFILOS (%)", "2"]
+                        ultimoParametroSinValor = token;
+                    } else if (ultimoParametroSinValor && token.match(/^([\d,.]+)/)) {
+                        // Si el token actual es un número y teníamos un parámetro guardado sin valor, los juntamos
+                        parametro = ultimoParametroSinValor;
+                        valor = token.match(/^([\d,.]+)/)[1];
+                        ultimoParametroSinValor = null;
+                    }
+                }
 
-                        // Es basura si contiene la palabra "fecha" o literalmente tiene una fecha como 05/12/2025
-                        const esBasura = ignorar.some(p => parametro.toLowerCase().includes(p)) || !!parametro.match(/\d{2}\/\d{2}\/\d{4}/);
+                if (parametro && valor) {
+                    parametro = parametro.replace(/^[\*\-•]\s*/, '');
 
-                        if (matchValor && parametro.length > 2 && parametro.length < 50 && !esBasura) {
-                            // Limpiar exceso de espacios internos del parámetro (ej: "LEUCOCITOS  (x mm3)" -> "LEUCOCITOS (x mm3)")
-                            const nombreLimpio = parametro.replace(/\s+/g, ' ');
-                            resultados[nombreLimpio] = matchValor[1];
-                        }
+                    const esBasura = ignorar.some(p => parametro.toLowerCase().includes(p)) || !!parametro.match(/\d{2}\/\d{2}\/\d{4}/);
+
+                    if (parametro.length > 2 && parametro.length < 50 && !esBasura) {
+                        const nombreLimpio = parametro.replace(/\s+/g, ' ');
+                        resultados[nombreLimpio] = valor;
                     }
                 }
             }
